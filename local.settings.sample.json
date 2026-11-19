@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AI_MAX_WORKERS": "6",
+    "KNOWLEDGE_STORAGE_ACCOUNT_URL": "https://stcckqcoredev001.blob.core.windows.net",
+    "KNOWLEDGE_CONTAINER": "knowledge",
+    "KNOWLEDGE_PREFIX": "vpoint/Entity Administration/",
+    "KNOWLEDGE_CACHE_SECONDS": "300",
+    "AZURE_OPENAI_ENDPOINT": "<endpoint>",
+    "AZURE_OPENAI_API_KEY": "<key>",
+    "AZURE_OPENAI_DEPLOYMENT": "<deployment name>"
+  }
+}
