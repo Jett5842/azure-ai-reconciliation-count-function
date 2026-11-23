@@ -10,27 +10,27 @@ from openpyxl.utils import get_column_letter
 
 # (header, row key, width)
 COLUMNS = [
-    ("Module", "module", 20),                                          # A  merged per staging table, like E..L
-    ("Source Table Name", "source_table", 38),                         # B
-    ("Source Table Type", "source_type", 11),                          # C
-    ("Source Record Count", "source_count", 12),                       # D
-    ("Source Total Record Count", "source_total", 14),                 # E  merged per staging table
-    ("MIG_STAGING Table Name", "mig_table", 30),                       # F  merged
-    ("MIG_STAGING Table Record Count", "mig_count", 14),               # G  merged
-    ("Qcore Table Name", "qcore_table", 30),                           # H  merged
-    ("No of Records Migrated Successfully", "success", 14),            # I  merged
-    ("No of Records Migrated Failed", "failed", 13),                   # J  merged
-    ("Fail %", None, 9),                                               # K  merged, formula
-    ("Status", None, 14),                                              # L  merged, formula
+    ("Module", "module", 20),                                          # A  merged per staging table
+    ("Status", None, 14),                                              # B  merged, formula
+    ("Source Table Name", "source_table", 38),                         # C
+    ("Source Table Type", "source_type", 11),                          # D
+    ("Source Record Count", "source_count", 12),                       # E
+    ("Source Total Record Count", "source_total", 14),                 # F  merged per staging table
+    ("MIG_STAGING Table Name", "mig_table", 30),                       # G  merged
+    ("MIG_STAGING Table Record Count", "mig_count", 14),               # H  merged
+    ("Qcore Table Name", "qcore_table", 30),                           # I  merged
+    ("No of Records Migrated Successfully", "success", 14),            # J  merged
+    ("No of Records Migrated Failed", "failed", 13),                   # K  merged
+    ("Fail %", None, 9),                                               # L  merged, formula
     ("Extract Script Condition Applied", "condition", 70),             # M
     ("Scope", "scope", 45),                                            # N
     ("Remark", "remark", 22),                                          # O
 ]
 KEYS = [key for _, key, _ in COLUMNS]
 COL = {title: i for i, (title, _, _) in enumerate(COLUMNS, start=1)}
-C_MODULE, C_SOURCE, C_TYPE, C_COUNT = 1, 2, 3, 4
-C_TOTAL, C_MIG, C_MIGCOUNT, C_QCORE, C_OK, C_FAIL, C_FAILPCT, C_STATUS = 5, 6, 7, 8, 9, 10, 11, 12
-MERGE_FIRST_COL, MERGE_LAST_COL = C_TOTAL, C_STATUS   # E..L merged per staging table
+C_MODULE, C_STATUS, C_SOURCE, C_TYPE, C_COUNT = 1, 2, 3, 4, 5
+C_TOTAL, C_MIG, C_MIGCOUNT, C_QCORE, C_OK, C_FAIL, C_FAILPCT = 6, 7, 8, 9, 10, 11, 12
+MERGED_COLS = {C_MODULE, C_STATUS, *range(C_TOTAL, C_FAILPCT + 1)}   # merged per staging table
 LEFT_COLS, BOLD_COLS = {C_MODULE, C_MIG, C_QCORE}, {C_MODULE, C_MIG, C_QCORE, C_STATUS}
 
 # Module order in the report; any other module name is listed last as "Other Modules"
@@ -95,14 +95,14 @@ def build_workbook(rows: list) -> bytes:
 
         for c, key in enumerate(KEYS, start=1):
             cell = ws.cell(row=r, column=c, value=None if key is None else row[key])
-            merged_col = c == C_MODULE or MERGE_FIRST_COL <= c <= MERGE_LAST_COL
+            merged_col = c in MERGED_COLS
             cell.fill = block_fill if merged_col else (FILL_LOOKUP if is_lookup else block_fill)
             cell.font = font
             cell.border = border
             if c in (C_SOURCE, C_TYPE, C_COUNT):
                 cell.alignment = Alignment(wrap_text=(c == C_SOURCE), vertical="top",
                                            horizontal=None if c == C_SOURCE else "center")
-            elif c > MERGE_LAST_COL:
+            elif c > C_FAILPCT:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
             if c == C_COUNT:
                 cell.number_format = "#,##0;-#,##0;0"
@@ -116,7 +116,7 @@ def build_workbook(rows: list) -> bytes:
 
     last_row = len(rows) + 1
     if rows:
-        # ---- merge A and E..L per staging table, centre, add Fail % / Status formulas --------------------------------
+        # ---- merge A, B and F..L per staging table, centre, add Fail % / Status formulas --------------------------------
         start = 2
         for r in range(2, last_row + 2):  # one extra pass closes the last block
             if r <= last_row and rows[r - 2]["mig_table"] == rows[start - 2]["mig_table"]:
@@ -127,7 +127,7 @@ def build_workbook(rows: list) -> bytes:
             ws.cell(row=start, column=C_STATUS, value=(
                 f'=IF(N({g})=0,"No data",IF({h}="","Not loaded",'
                 f'IF(N({i})>0,"Has failures",IF(N({j})+N({i})<>N({g}),"Check","OK"))))'))
-            for c in (C_MODULE, *range(MERGE_FIRST_COL, MERGE_LAST_COL + 1)):
+            for c in sorted(MERGED_COLS):
                 top = ws.cell(row=start, column=c)
                 top.font = Font(name=FONT, size=10, bold=c in BOLD_COLS)
                 top.alignment = Alignment(horizontal="left" if c in LEFT_COLS else "center",
@@ -154,7 +154,7 @@ def build_workbook(rows: list) -> bytes:
             operator="equal", formula=[f'"{text}"'], font=Font(color=fg),
             fill=PatternFill(start_color=bg, end_color=bg, fill_type="solid")))
 
-    ws.freeze_panes = "C2"
+    ws.freeze_panes = "D2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUMNS))}{max(last_row, 2)}"
 
     buffer = BytesIO()
