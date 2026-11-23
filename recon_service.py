@@ -1,4 +1,6 @@
 """Turns the request from Business Central into the report rows."""
+import logging
+
 from recon_ai import generate_descriptions
 
 
@@ -11,6 +13,12 @@ def _order(source: dict, index: int):
 def build_rows(payload: dict) -> list:
     tables = payload.get("tables", [])
     descriptions = generate_descriptions(tables, payload.get("knowledge_prefix", ""))
+    modules = sorted({t.get("module", "") for t in tables})
+    logging.info("Reconciliation request: %d tables, modules received: %s, client_build=%s",
+                 len(tables), modules, payload.get("client_build", "(none)"))
+    if modules == [""]:
+        logging.warning("No 'module' in the request - the Business Central extension sending it is not deployed; "
+                        "every table will be listed under 'Other Modules'")
     rows = []
     for t in tables:
         sources = t.get("sources", [])
@@ -21,6 +29,7 @@ def build_rows(payload: dict) -> list:
         for s in ordered:
             condition, scope = descriptions.get((t["mig_staging_table"], s["source_table"]), ("", ""))
             rows.append({
+                "module": t.get("module", ""),
                 "source_table": s["source_table"],
                 "source_type": s["source_type"],
                 "source_count": s["total_source_table_count"],
